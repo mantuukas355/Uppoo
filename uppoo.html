@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uppoo</title>
+
+  <!-- Fonts — no install needed, loads from Google -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- React & Babel — no install needed -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+  <!-- Tailwind — no install needed -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; font-family: 'DM Sans', sans-serif; }
+    body { overflow: hidden; }
+
+    /* scrollbar styling */
+    .messages-scroll::-webkit-scrollbar { width: 4px; }
+    .messages-scroll::-webkit-scrollbar-track { background: transparent; }
+    .messages-scroll::-webkit-scrollbar-thumb { background: rgba(100,80,180,0.2); border-radius: 4px; }
+
+    @keyframes bounce-dot {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+    @keyframes share-pop {
+      0% { opacity: 0; transform: translateY(-10px) scale(0.96); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .dot-1 { animation: bounce-dot 1.2s 0ms infinite; }
+    .dot-2 { animation: bounce-dot 1.2s 200ms infinite; }
+    .dot-3 { animation: bounce-dot 1.2s 400ms infinite; }
+
+    /* sidebar animation */
+    .sidebar-container { transition: margin-left 0.3s ease, opacity 0.3s ease; }
+    .sidebar-hidden { margin-left: -296px; opacity: 1; }
+    .logo-transition { transition: left 0.3s ease, opacity 0.3s ease; }
+    .help-panel { transition: margin-right 0.3s ease, opacity 0.3s ease; }
+    .help-panel-hidden { margin-right: -296px; opacity: 0; pointer-events: none; }
+    /* interactive hover/press styling */
+    button {
+      transition: background 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+      outline: none;
+      box-shadow: none;
+    }
+    button:hover:not(:disabled) {
+      background: rgba(61, 58, 110, 0.22);
+      box-shadow: 0 6px 18px rgba(61, 58, 110, 0.14);
+    textarea::placeholder {
+      font-size: 20px;
+      color: #3d1a6e;
+    }
+    }
+    button:active:not(:disabled) {
+      background: rgba(61, 58, 110, 0.28);
+      filter: brightness(0.95);
+      box-shadow: 0 4px 10px rgba(61, 58, 110, 0.18);
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.75;
+      box-shadow: none;
+    }
+    button:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(61, 58, 110, 0.12);
+    }
+    .no-hover-button:hover, .no-hover-button:active {
+      background: none !important;
+      box-shadow: none !important;
+      filter: none !important;
+    }
+    textarea:focus, input:focus {
+      outline: none;
+      box-shadow: none;
+    }
+    /* textarea placeholder styling */
+    textarea::placeholder { color: #bbb; font-size: 18px; line-height: 1.5; }
+    textarea::-webkit-input-placeholder { color: #bbb; font-size: 18px; line-height: 1.5; }
+    textarea:-moz-placeholder { color: #bbb; font-size: 18px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+// ─── PUT YOUR IMAGE PATHS HERE ────────────────────────────────────────────
+// If your images are in the same folder as this file, just use the filename:
+const LOGO_URL = "https://i.imgur.com/P1JMfZT.png";   // full wordmark → top-left
+const ICON_URL = "https://i.imgur.com/B1ZvZTd.png";     // icon → avatar + footer
+// ─────────────────────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `You are Uppoo, a warm, empathetic mental health companion for young people aged 13–25. You listen without judgment, validate feelings, and gently suggest healthy coping strategies.
+
+Rules:
+- Keep responses to 2–4 sentences max — warm, friendly, never clinical
+- Always validate feelings before suggesting anything
+- Ask one gentle follow-up question per response
+- If someone mentions self-harm or crisis, compassionately refer them to a crisis line (Crisis Text Line: text HOME to 741741, or local emergency services)
+- Never diagnose or prescribe
+- Be human, warm, real — not robotic or overly cheerful`;
+
+const HISTORY_ITEMS = [
+  "Therapist in Eindhoven",
+  "Dealing with stress",
+  "Mental health support",
+  "Overcoming loneliness advice",
+];
+
+const MOCK_REPLIES = [
+  "That sounds really tough, and I'm glad you felt comfortable sharing that with me. It's completely okay to feel this way — you're not alone. What do you think has been making it feel harder lately?",
+  "I hear you, and what you're feeling makes a lot of sense given everything you're going through. Sometimes just naming it is a big first step. Is there one thing that's been weighing on you the most?",
+  "Thank you for trusting me with this. It takes courage to reach out, even to a chat. How long have you been feeling this way?",
+  "That's a really valid feeling, and you don't have to figure it all out at once. I'm here with you. What would feel most helpful right now — venting, or maybe some ideas to try?",
+];
+let mockIndex = 0;
+const HELP_PLACES = [
+  {
+    title: "Walk-In Mental Health Support",
+    text: "A local crisis center, urgent care clinic, or youth mental health service can help you speak to someone quickly in person.",
+    image: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    title: "Quiet Safe Place",
+    text: "If possible, move to a calmer place with a trusted person nearby while you reach out for help or make your next step.",
+    image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80",
+  },
+];
+
+// ── Icons ─────────────────────────────────────────────────────────────────
+const SendIcon = () => (
+  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+    <line x1={22} y1={2} x2={11} y2={13}/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+const ImgIcon = () => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#3d1a6e" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <rect x={3} y={3} width={18} height={18} rx={3}/><circle cx={8.5} cy={8.5} r={1.5}/><polyline points="21 15 16 10 5 21"/>
+  </svg>
+);
+const CodeIcon = () => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#3d1a6e" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+  </svg>
+);
+const MicIcon = () => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#3d1a6e" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+    <line x1={12} y1={19} x2={12} y2={23}/><line x1={8} y1={23} x2={16} y2={23}/>
+  </svg>
+);
+const UploadIcon = ({ open }) => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <line
+      x1={6}
+      y1={6}
+      x2={18}
+      y2={18}
+      style={{ opacity: open ? 1 : 0, transformOrigin: "12px 12px", transform: open ? "scale(1)" : "scale(0.7)", transition: "opacity 0.22s ease, transform 0.3s ease" }}
+    />
+    <line
+      x1={18}
+      y1={6}
+      x2={6}
+      y2={18}
+      style={{ opacity: open ? 1 : 0, transformOrigin: "12px 12px", transform: open ? "scale(1)" : "scale(0.7)", transition: "opacity 0.22s ease, transform 0.3s ease" }}
+    />
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" style={{ opacity: open ? 0 : 1, transition: "opacity 0.22s ease" }}/>
+    <polyline points="17 8 12 3 7 8" style={{ opacity: open ? 0 : 1, transformOrigin: "12px 8px", transform: open ? "translateY(2px) scale(0.85)" : "none", transition: "opacity 0.22s ease, transform 0.3s ease" }}/>
+    <line x1={12} y1={3} x2={12} y2={15} style={{ opacity: open ? 0 : 1, transformOrigin: "12px 9px", transform: open ? "translateY(2px) scaleY(0.8)" : "none", transition: "opacity 0.22s ease, transform 0.3s ease" }}/>
+  </svg>
+);
+const DotsIcon = () => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx={12} cy={5} r={1}/><circle cx={12} cy={12} r={1}/><circle cx={12} cy={19} r={1}/>
+  </svg>
+);
+const HelpIcon = ({ open }) => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <line
+      x1={6}
+      y1={6}
+      x2={18}
+      y2={18}
+      style={{ transformOrigin: "12px 12px", transform: open ? "scale(1)" : "scale(0.72)", opacity: open ? 1 : 0, transition: "transform 0.3s ease, opacity 0.22s ease" }}
+    />
+    <line
+      x1={18}
+      y1={6}
+      x2={6}
+      y2={18}
+      style={{ transformOrigin: "12px 12px", transform: open ? "scale(1)" : "scale(0.72)", opacity: open ? 1 : 0, transition: "transform 0.3s ease, opacity 0.22s ease" }}
+    />
+    <path d="M12 20s-6.5-3.9-8.3-7.5C2.1 9.5 3.7 6 7.4 6c1.9 0 3.2 1 4.6 2.7C13.4 7 14.7 6 16.6 6c3.7 0 5.3 3.5 3.7 6.5C18.5 16.1 12 20 12 20z" style={{ opacity: open ? 0 : 1, transition: "opacity 0.22s ease" }}/>
+    <path d="M9.4 12h1.8l.8-1.8 1.5 3.7 1-1.9h1.2" style={{ opacity: open ? 0 : 1, transition: "opacity 0.22s ease" }}/>
+  </svg>
+);
+const ThemeIcon = ({ dark }) => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx={12} cy={12} r={4.5} style={{ opacity: dark ? 0 : 1, transform: dark ? "scale(0.6)" : "scale(1)", transformOrigin:"12px 12px", transition:"opacity 0.22s ease, transform 0.3s ease" }}/>
+    <path d="M17 12.2A5.2 5.2 0 1 1 11.8 7a4.2 4.2 0 0 0 5.2 5.2z" style={{ opacity: dark ? 1 : 0, transform: dark ? "scale(1)" : "scale(0.7)", transformOrigin:"12px 12px", transition:"opacity 0.22s ease, transform 0.3s ease" }}/>
+    <path d="M12 2.5v2.1M12 19.4v2.1M21.5 12h-2.1M4.6 12H2.5M18.7 5.3l-1.5 1.5M6.8 17.2l-1.5 1.5M18.7 18.7l-1.5-1.5M6.8 6.8L5.3 5.3" style={{ opacity: dark ? 0 : 1, transition:"opacity 0.22s ease" }}/>
+  </svg>
+);
+const LinkIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4"/>
+    <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19"/>
+  </svg>
+);
+const MailIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x={3} y={5} width={18} height={14} rx={2}/>
+    <path d="M3 7l9 6 9-6"/>
+  </svg>
+);
+const WhatsAppIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 11.5a8.5 8.5 0 0 1-12.53 7.5L4 20l1.12-3.28A8.5 8.5 0 1 1 20 11.5z"/>
+    <path d="M9.8 8.8c.18-.39.36-.41.54-.41h.45c.16 0 .34.06.44.28.13.27.43 1 .47 1.08.04.08.07.17.02.27-.05.1-.08.17-.15.25-.08.08-.15.18-.22.23-.07.07-.14.14-.06.27.08.13.38.62.8 1.01.55.49 1.02.64 1.16.72.15.07.23.06.32-.04.08-.1.36-.4.46-.54.1-.14.19-.12.32-.07.13.05.85.4 1 .47.15.08.25.12.28.18.03.06.03.39-.09.77-.12.38-.69.72-.96.77-.25.05-.56.07-.91-.04-.21-.06-.48-.15-.81-.3-1.42-.62-2.35-2.14-2.42-2.24-.07-.1-.57-.77-.57-1.47 0-.69.37-1.03.5-1.18z"/>
+  </svg>
+);
+const XIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#5a4a9a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4l16 16"/>
+    <path d="M20 4L4 20"/>
+  </svg>
+);
+const PlusIcon = () => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#3d1a6e" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <line x1={12} y1={5} x2={12} y2={19}/>
+    <line x1={5} y1={12} x2={19} y2={12}/>
+  </svg>
+);
+const SearchIcon = () => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#3d1a6e" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx={11} cy={11} r={7}/>
+    <line x1={20} y1={20} x2={16.65} y2={16.65}/>
+  </svg>
+);
+const MenuIcon = ({ open }) => (
+  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#3d1a6e" strokeWidth={2} strokeLinecap="round">
+    <line
+      x1={4}
+      y1={6}
+      x2={20}
+      y2={6}
+      style={{ transformOrigin: "12px 6px", transform: open ? "translateY(6px) rotate(45deg)" : "none", transition: "transform 0.3s ease" }}
+    />
+    <line
+      x1={4}
+      y1={12}
+      x2={20}
+      y2={12}
+      style={{ opacity: open ? 0 : 1, transition: "opacity 0.22s ease" }}
+    />
+    <line
+      x1={4}
+      y1={18}
+      x2={20}
+      y2={18}
+      style={{ transformOrigin: "12px 18px", transform: open ? "translateY(-6px) rotate(-45deg)" : "none", transition: "transform 0.3s ease" }}
+    />
+  </svg>
+);
+
+// ── App ───────────────────────────────────────────────────────────────────
+function App() {
+  const [messages, setMessages] = useState([
+    { role: "assistant", text: "Hey, I'm glad you're here. This is a safe space — no judgment, just support. How are you feeling today?" },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showChips, setShowChips] = useState(true);
+  const [activeChat, setActiveChat] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showHelpPanel, setShowHelpPanel] = useState(false);
+  const [darkTheme, setDarkTheme] = useState(false);
+  const [shareStatus, setShareStatus] = useState("");
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+  const shareMenuRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  useEffect(() => {
+    function handlePointerDown(e) {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target)) {
+        setShowShareMenu(false);
+      }
+    }
+
+    if (showShareMenu) document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [showShareMenu]);
+
+  function send(text) {
+    if (!text.trim() || loading) return;
+    setShowChips(false);
+    setMessages(m => [...m, { role: "user", text }]);
+    setInput("");
+    setLoading(true);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+    // Mock reply after 1.2 s — replace this block with your real API call later
+    setTimeout(() => {
+      const reply = MOCK_REPLIES[mockIndex % MOCK_REPLIES.length];
+      mockIndex++;
+      setMessages(m => [...m, { role: "assistant", text: reply }]);
+      setLoading(false);
+    }, 1200);
+  }
+
+  function handleKey(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
+  }
+
+  function handleTextarea(e) {
+    setInput(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(e.target.scrollHeight, 80) + "px";
+  }
+
+  function resetChat() {
+    setMessages([{ role: "assistant", text: "Hey, I'm glad you're here. How are you feeling today?" }]);
+    mockIndex = 0;
+    setShowChips(true);
+    setActiveChat(null);
+    setInput("");
+  }
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareStatus("Link copied");
+    } catch (error) {
+      setShareStatus("Couldn't copy link");
+    }
+    setShowShareMenu(false);
+    setTimeout(() => setShareStatus(""), 1800);
+  }
+
+  function openShareTarget(type) {
+    const shareUrl = encodeURIComponent(window.location.href);
+    const shareText = encodeURIComponent("Take a look at Uppoo");
+    const targets = {
+      email: `mailto:?subject=Uppoo&body=${shareText}%0A%0A${shareUrl}`,
+      whatsapp: `https://wa.me/?text=${shareText}%20${shareUrl}`,
+      x: `https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`,
+    };
+    window.open(targets[type], "_blank", "noopener,noreferrer");
+    setShowShareMenu(false);
+  }
+
+  return (
+    <div style={{ display:"flex", height:"100vh", background: darkTheme ? "#1f1a2d" : "#f5f3ee", fontFamily:"'DM Sans',sans-serif", overflow:"hidden", position:"relative" }}>
+
+      {/* Menu toggle button - fixed position */}
+      <div style={{ position:"fixed", left:24, top:28, display:"flex", flexDirection:"column", gap:18, zIndex:10 }}>
+        <button className="no-hover-button" onClick={() => setShowSidebar(!showSidebar)} style={{ width:28, height:28, background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+          <MenuIcon open={showSidebar} />
+        </button>
+        <button className="no-hover-button" onClick={resetChat} style={{ width:28, height:28, background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <PlusIcon />
+        </button>
+        <button className="no-hover-button" style={{ width:28, height:28, background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <SearchIcon />
+        </button>
+      </div>
+
+      {/* ── Sidebar ── */}
+      <div className={`sidebar-container ${!showSidebar ? 'sidebar-hidden' : ''}`} style={{ width:296, flexShrink:0, background:"#ffffff", display:"flex", flexDirection:"column", paddingTop:30, paddingBottom:16, boxShadow:"0 12px 34px rgba(80,40,140,0.19)", zIndex:2 }}>
+
+        <div style={{ height:20 }} />
+
+        <div style={{ padding:"0 12px 12px" }}>
+          <div onClick={resetChat} style={{ margin:"16px 0 0", minHeight:46, padding:"0 16px 0 44px", display:"flex", alignItems:"center", gap:10, fontSize:17, color:"#3d1a6e", fontWeight:400, borderRadius:999, background:"transparent", cursor:"pointer", overflow:"hidden" }}>
+            <span>New chat</span>
+          </div>
+          <div style={{ width:"100%", background:"rgba(255,255,255,0.65)", border:"none", borderRadius:20, padding:"0 18px 0 46px", minHeight:44, marginTop:0, display:"flex", alignItems:"center", gap:10, overflow:"hidden" }}>
+            <input type="text" placeholder="Search" style={{ width:"100%", background:"transparent", border:"none", fontSize:16, color:"#555", outline:"none", fontFamily:"inherit" }} />
+          </div>
+        </div>
+
+        <div style={{ fontSize:14, fontWeight:600, letterSpacing:"0.08em", color:"#bbb", textTransform:"uppercase", padding:"6px 16px 4px" }}>Chats</div>
+
+        {HISTORY_ITEMS.map((item, i) => (
+          <div key={i} onClick={() => setActiveChat(i)} style={{ margin:"4px 8px", minHeight:46, padding:"0 16px", display:"flex", alignItems:"center", fontSize:17, color:"#3d1a6e", borderRadius:999, cursor:"pointer", background: activeChat===i ? "#f0eafa" : "transparent", fontWeight:400, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}
+            onMouseOver={e => { if(activeChat!==i) e.currentTarget.style.background="#fbf8fd"; }}
+            onMouseOut={e => { if(activeChat!==i) e.currentTarget.style.background="transparent"; }}
+          >{item}</div>
+        ))}
+
+        <div style={{ position:"fixed", left:22, bottom:24, display:"flex", alignItems:"center", gap:10, zIndex:10 }}>
+          <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", flexShrink:0, background:"transparent" }}>
+            <img src={ICON_URL} alt="Uppoo icon" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+          </div>
+          <span style={{ fontSize:15, color:"#3d1a6e", display: showSidebar ? "inline" : "none" }}>info@uppoo.nl</span>
+        </div>
+      </div>
+
+      {/* ── Chat area ── */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background: darkTheme ? "linear-gradient(to top left,#2f2443 0%,#3d2d57 42%,#4b3968 74%,#58457a 100%)" : "linear-gradient(to top left,#c7b6e9 0%,#d5c8f0 42%,#e8e0f8 74%,#f8f5fe 100%)" }}>
+
+        {/* Fixed logo and buttons */}
+        <img className="logo-transition" src={LOGO_URL} alt="Uppoo" onClick={resetChat} style={{ position:"fixed", left: showSidebar ? 316 : 88, top:20, height:96, objectFit:"contain", cursor:"pointer", zIndex:10 }} />
+        <div style={{ position:"fixed", right:20, top:20, display:"flex", gap:18, zIndex:10 }}>
+          <button onClick={() => setDarkTheme(v => !v)} style={{ width:48, height:48, borderRadius:"50%", background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}><ThemeIcon dark={darkTheme} /></button>
+          <div ref={shareMenuRef} style={{ position:"relative" }}>
+            <button onClick={() => setShowShareMenu(v => !v)} style={{ width:48, height:48, borderRadius:"50%", background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}><UploadIcon open={showShareMenu} /></button>
+            {showShareMenu && (
+              <div style={{ position:"absolute", top:56, right:0, width:224, padding:"10px", borderRadius:18, background:"#f5f2f8", boxShadow:"0 12px 34px rgba(80,40,140,0.19)", display:"flex", flexDirection:"column", gap:6, transformOrigin:"top right", animation:"share-pop 220ms cubic-bezier(0.22, 1, 0.36, 1)" }}>
+                <button onClick={copyShareLink} style={{ width:"100%", minHeight:40, borderRadius:14, background:"transparent", border:"none", cursor:"pointer", padding:"0 14px", display:"flex", alignItems:"center", gap:10, color:"#3d1a6e", fontSize:15, fontFamily:"inherit" }}><LinkIcon /><span>Copy link</span></button>
+                <button onClick={() => openShareTarget("email")} style={{ width:"100%", minHeight:40, borderRadius:14, background:"transparent", border:"none", cursor:"pointer", padding:"0 14px", display:"flex", alignItems:"center", gap:10, color:"#3d1a6e", fontSize:15, fontFamily:"inherit" }}><MailIcon /><span>Share by email</span></button>
+                <button onClick={() => openShareTarget("whatsapp")} style={{ width:"100%", minHeight:40, borderRadius:14, background:"transparent", border:"none", cursor:"pointer", padding:"0 14px", display:"flex", alignItems:"center", gap:10, color:"#3d1a6e", fontSize:15, fontFamily:"inherit" }}><WhatsAppIcon /><span>Share on WhatsApp</span></button>
+                <button onClick={() => openShareTarget("x")} style={{ width:"100%", minHeight:40, borderRadius:14, background:"transparent", border:"none", cursor:"pointer", padding:"0 14px", display:"flex", alignItems:"center", gap:10, color:"#3d1a6e", fontSize:15, fontFamily:"inherit" }}><XIcon /><span>Share on X</span></button>
+              </div>
+            )}
+            {shareStatus && (
+              <div style={{ position:"absolute", top:188, right:0, padding:"8px 12px", borderRadius:14, background:"#f5f2f8", color:"#3d1a6e", fontSize:14, boxShadow:"0 12px 34px rgba(80,40,140,0.19)", whiteSpace:"nowrap" }}>
+                {shareStatus}
+              </div>
+            )}
+          </div>
+          <button onClick={() => setShowHelpPanel(v => !v)} style={{ width:48, height:48, borderRadius:"50%", background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}><HelpIcon open={showHelpPanel} /></button>
+        </div>
+
+        <div className={`help-panel ${!showHelpPanel ? 'help-panel-hidden' : ''}`} style={{ position:"fixed", right:0, top:0, width:"min(296px, calc(100vw - 12px))", height:"100vh", background:"#ffffff", padding:"84px 14px 14px", boxShadow:"0 12px 34px rgba(80,40,140,0.19)", zIndex:9, display:"flex", flexDirection:"column", gap:10, overflow:"hidden" }}>
+          <div style={{ padding:"0 8px" }}>
+            <div style={{ fontSize:24, fontWeight:600, color:"#3d1a6e", marginBottom:8 }}>Emergency help</div>
+            <div style={{ fontSize:15, lineHeight:1.55, color:"rgba(61,26,110,0.76)" }}>
+              If your life is in immediate danger, call 112 immediately. If it is not in immediate danger but you still need help, call 113 for free or start an online chat.
+            </div>
+          </div>
+
+          <div style={{ display:"grid", gap:10, overflowY:"auto", paddingRight:2, minHeight:0 }}>
+            {HELP_PLACES.map((place, index) => (
+              <div key={index} style={{ background:"transparent", borderRadius:20, overflow:"hidden", boxShadow:"none" }}>
+                <img src={place.image} alt={place.title} style={{ width:"100%", height:"clamp(96px, 18vh, 128px)", objectFit:"cover", display:"block" }} />
+                <div style={{ padding:"12px 14px 14px" }}>
+                  <div style={{ fontSize:17, fontWeight:600, color:"#3d1a6e", marginBottom:6 }}>{place.title}</div>
+                  <div style={{ fontSize:13, lineHeight:1.55, color:"rgba(61,26,110,0.76)", overflowWrap:"anywhere" }}>{place.text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop:"auto", background:"transparent", borderRadius:20, padding:"14px 16px", boxShadow:"none", flexShrink:0 }}>
+            <div style={{ fontSize:16, fontWeight:600, color:"#3d1a6e", marginBottom:8 }}>Quick contacts</div>
+            <div style={{ fontSize:13, lineHeight:1.6, color:"rgba(61,26,110,0.8)", overflowWrap:"anywhere" }}>
+              Immediate danger: call 112<br />
+              Need help now in the Netherlands: call 113 for free<br />
+              Outside the Netherlands: use 113 chat<br />
+              113 chat is anonymous and available day and night
+            </div>
+          </div>
+        </div>
+
+        <div style={{ maxWidth:800, margin:"0 auto", flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+          {/* Messages */}
+          <div className="messages-scroll" style={{ flex:1, overflowY:"auto", padding:"120px 24px 16px", display:"flex", flexDirection:"column", gap:16 }}>
+          {messages.map((m, i) =>
+            m.role === "user" ? (
+              <div key={i} style={{ alignSelf:"flex-end", maxWidth:"72%" }}>
+                <div style={{ background:"#f5f2f8", borderRadius:"18px 18px 4px 18px", padding:"16px 20px", fontSize:18, color:"#3d1a6e", lineHeight:1.6, boxShadow:"0 12px 34px rgba(80,40,140,0.19)" }}>
+                  {m.text}
+                </div>
+              </div>
+            ) : (
+              <div key={i} style={{ alignSelf:"flex-start", maxWidth:"72%", display:"flex", alignItems:"flex-start", gap:10 }}>
+                <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", flexShrink:0, marginTop:14, background:"transparent" }}>
+                  <img src={ICON_URL} alt="Uppoo" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                </div>
+                <div style={{ padding:"16px 20px", fontSize:18, color:"#3d1a6e", lineHeight:1.65 }}>{m.text}</div>
+              </div>
+            )
+          )}
+
+          {loading && (
+            <div style={{ alignSelf:"flex-start", display:"flex", alignItems:"flex-start", gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", flexShrink:0, marginTop:14, background:"transparent" }}>
+                <img src={ICON_URL} alt="Uppoo" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+              </div>
+              <div style={{ padding:"16px" }}>
+                <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                  <div className="dot-1" style={{ width:7, height:7, background:"#9080c0", borderRadius:"50%" }}/>
+                  <div className="dot-2" style={{ width:7, height:7, background:"#9080c0", borderRadius:"50%" }}/>
+                  <div className="dot-3" style={{ width:7, height:7, background:"#9080c0", borderRadius:"50%" }}/>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Chips */}
+        {showChips && (
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", padding:"0 24px 12px" }}>
+            {["I'm feeling anxious","I feel overwhelmed","I'm struggling to sleep","I just need to vent"].map((c, i) => (
+              <button key={i} onClick={() => send(c)}
+                style={{ fontSize:16, padding:"10px 18px", borderRadius:20, border:"none", cursor:"pointer", color:"#4a3a8a", background:"rgba(255,255,255,0.65)", fontFamily:"inherit", transition:"background 0.15s" }}
+                onMouseOver={e => e.target.style.background="rgba(255,255,255,0.9)"}
+                onMouseOut={e => e.target.style.background="rgba(255,255,255,0.65)"}
+              >{c}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Input */}
+        <div style={{ padding:"0 20px 16px" }}>
+          <div style={{ background:"#ffffff", borderRadius:20, padding:"16px 20px", boxShadow:"0 12px 34px rgba(80,40,140,0.19)" }}>
+            <textarea ref={textareaRef} rows={1} placeholder="What can I help you with?" value={input} onChange={handleTextarea} onKeyDown={handleKey}
+              style={{ width:"100%", border:"none", outline:"none", resize:"none", fontSize:18, fontFamily:"inherit", color:"#3d1a6e", background:"transparent", lineHeight:1.5, maxHeight:80, minHeight:36, padding:"10px 0 2px" }}
+            />
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:12 }}>
+              <div style={{ display:"flex", gap:14 }}>
+                <button style={{ width:42, height:42, borderRadius:"50%", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center", background:"none", color:"#3d1a6e" }}><ImgIcon /></button>
+                <button style={{ width:42, height:42, borderRadius:"50%", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center", background:"none", color:"#3d1a6e" }}><CodeIcon /></button>
+                <button style={{ width:42, height:42, borderRadius:"50%", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center", background:"none", color:"#3d1a6e" }}><MicIcon /></button>
+              </div>
+              <button onClick={() => send(input)} disabled={!input.trim() || loading}
+                style={{ width:42, height:42, borderRadius:"50%", background: (!input.trim()||loading) ? "#c5bfdf" : "#3d1a6e", border:"none", cursor: (!input.trim()||loading) ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.15s" }}>
+                <SendIcon />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div onClick={() => setShowHelpPanel(true)} style={{ fontSize:16, color:"rgba(80,40,160,0.4)", textAlign:"center", paddingBottom:10, lineHeight:1.4, cursor:"pointer" }}>
+          In danger? Call 112 now, or open emergency help.
+        </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById("root"));
+</script>
+</body>
+</html>
