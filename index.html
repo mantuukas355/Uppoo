@@ -30,6 +30,10 @@
       background: rgba(100,80,180,0.2); 
       border-radius: 4px; 
     }
+    .dark .messages-scroll::-webkit-scrollbar-thumb {
+      background: rgba(180,80,255,0.55);
+      box-shadow: 0 0 8px rgba(180,60,255,0.7);
+    }
 
     @keyframes bounce-dot {
       0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
@@ -456,7 +460,7 @@ function App() {
   }
 
   return (
-    <div className="theme-smooth" style={{ display:"flex", height:"100vh", background: theme.shell, fontFamily:"'DM Sans',sans-serif", overflow:"hidden", position:"relative" }}>
+    <div className={`theme-smooth${darkTheme ? " dark" : ""}`} style={{ display:"flex", height:"100vh", background: theme.shell, fontFamily:"'DM Sans',sans-serif", overflow:"hidden", position:"relative" }}>
       {themePulse && (
         <div className="theme-wash" style={{ background: darkTheme
           ? "linear-gradient(to top left,#0e0a1a 0%,#1a1330 30%,#2e2248 62%,#3d2f60 100%)"
@@ -478,7 +482,7 @@ function App() {
       </div>
 
       {/* ── Sidebar ── */}
-      <div className={`sidebar-container ${!showSidebar ? 'sidebar-hidden' : ''}`} style={{ width:320, flexShrink:0, background:theme.panel, display:"flex", flexDirection:"column", paddingTop:30, paddingBottom:16, boxShadow:"0 12px 34px rgba(80,40,140,0.19)", zIndex:2 }}>
+      <div className={`sidebar-container ${!showSidebar ? 'sidebar-hidden' : ''}`} style={{ width:320, flexShrink:0, background:theme.panel, display:"flex", flexDirection:"column", paddingTop:30, paddingBottom:16, boxShadow: darkTheme ? "8px 0 28px rgba(160,60,255,0.10)" : "0 12px 34px rgba(80,40,140,0.19)", zIndex:2 }}>
 
         <div style={{ height:20 }} />
 
@@ -526,7 +530,7 @@ function App() {
               </div>
             )}
             {shareStatus && (
-              <div style={{ position:"absolute", top:188, right:0, padding:"8px 12px", borderRadius:14, background:theme.panelAlt, color:surfaceText, fontSize:14, boxShadow:"0 16px 40px rgba(80,40,140,0.24)", whiteSpace:"nowrap" }}>
+              <div style={{ position:"absolute", top:188, right:0, padding:"8px 12px", borderRadius:14, background:theme.panelAlt, color:surfaceText, fontSize:14, boxShadow: darkTheme ? "0 8px 28px rgba(160,60,255,0.12)" : "0 16px 40px rgba(80,40,140,0.24)", whiteSpace:"nowrap" }}>
                 {shareStatus}
               </div>
             )}
@@ -534,7 +538,7 @@ function App() {
           <button onClick={() => setShowHelpPanel(v => !v)} style={{ width:48, height:48, borderRadius:"50%", background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}><HelpIcon open={showHelpPanel} color={theme.text} /></button>
         </div>
 
-        <div className={`help-panel ${!showHelpPanel ? 'help-panel-hidden' : ''}`} style={{ position:"fixed", right:0, top:0, width:"min(320px, calc(100vw - 12px))", height:"100vh", background:theme.panel, boxShadow:"0 12px 34px rgba(80,40,140,0.19)", zIndex:9, overflowY:"auto", overflowX:"hidden" }}>
+        <div className={`help-panel ${!showHelpPanel ? 'help-panel-hidden' : ''}`} style={{ position:"fixed", right:0, top:0, width:"min(320px, calc(100vw - 12px))", height:"100vh", background:theme.panel, boxShadow: darkTheme ? "-8px 0 28px rgba(160,60,255,0.10)" : "0 12px 34px rgba(80,40,140,0.19)", zIndex:9, overflowY:"auto", overflowX:"hidden" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:10, padding:"84px 22px 28px", minHeight:"100%" }}>
             <div style={{ padding:"0 8px" }}>
               <div style={{ fontSize:24, fontWeight:600, color:surfaceText, marginBottom:8 }}>Emergency help</div>
@@ -574,7 +578,7 @@ function App() {
           {messages.map((m, i) =>
             m.role === "user" ? (
               <div key={i} style={{ alignSelf:"flex-end", maxWidth:"72%" }}>
-                <div style={{ background:theme.bubble, borderRadius:"18px 18px 4px 18px", padding:"16px 20px", fontSize:18, color:surfaceText, lineHeight:1.6, boxShadow:"0 12px 34px rgba(80,40,140,0.19)" }}>
+                <div style={{ background:theme.bubble, borderRadius:"18px 18px 4px 18px", padding:"16px 20px", fontSize:18, color:surfaceText, lineHeight:1.6, boxShadow: darkTheme ? "0 6px 24px rgba(160,60,255,0.12)" : "0 12px 34px rgba(80,40,140,0.19)" }}>
                   {m.text}
                 </div>
               </div>
@@ -620,7 +624,7 @@ function App() {
 
         {/* Input */}
         <div style={{ padding:"0 20px 16px" }}>
-          <div style={{ background:theme.input, borderRadius:20, padding:"16px 20px", boxShadow:"0 10px 24px rgba(80,40,140,0.14)" }}>
+          <div style={{ background:theme.input, borderRadius:20, padding:"16px 20px", boxShadow: darkTheme ? "0 6px 24px rgba(160,60,255,0.12)" : "0 10px 24px rgba(80,40,140,0.14)" }}>
             <textarea ref={textareaRef} rows={1} placeholder="What can I help you with?" value={input} onChange={handleTextarea} onKeyDown={handleKey}
               style={{ width:"100%", border:"none", outline:"none", resize:"none", fontSize:18, fontFamily:"inherit", color:surfaceText, background:"transparent", lineHeight:1.5, maxHeight:80, minHeight:36, padding:"10px 0 2px" }}
             />
